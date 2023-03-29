@@ -63,10 +63,13 @@ const char * const fragmentSource = R"(
 GPUProgram gpuProgram; // vertex and fragment shaders
 unsigned int vao, vbo;	   // virtual world on the GPU
 
-const int nTesselatedVertices = 60;
+const int nTesselatedVertices = 40;
 
-const float hamiSize = 0.2f;
+const float hamiSize = 0.5f;
 
+void printvector(vec3 p) {
+	printf("\nx: %lf, y: %lf, w: %lf\n", p.x, p.y, p.z);
+}
 //dot hyperbolic
 float dotH(vec3 u, vec3 v) {
 	return u.x * v.x + u.y * v.y + -1 * u.z * v.z;
@@ -82,13 +85,35 @@ vec3 normalizeH(vec3 u) {
 	return u * (1 / absH(u));
 }
 
+//projected vector for vector v in point on the plane p
+vec3 approVec(vec3 v, vec3 p) {
+	float lambda = dotH(v, p);
+	return normalizeH(v + lambda * p);
+}
+
+//approximate point for point p
+vec3 approPoint(vec3 p) {
+	if (dotH(p, p) == -1.0f) {
+		return p;
+	}
+	if (dotH(p, p) < 0.0f) {
+		vec3 appro = p * sqrtf(-1.0f / dotH(p, p));
+
+		return p * sqrtf(-1.0f / dotH(p, p));
+	}
+	if (dotH(p, p) > 0.0f) {
+		std::cout << "Nagy a baj, Houston.";
+	}
+	return p;
+}
+
 //perpendicular vector to u
 vec3 perpendVec(vec3 p, vec3 u) {
 	vec3 perpend;
 	//vec3 p = vec3(0, 0, 1);
 
 
-	return cross(vec3(u.x, u.y, -u.z), vec3(p.x, p.y, -p.z));
+	return normalizeH(cross(vec3(u.x, u.y, -u.z), vec3(p.x, p.y, -p.z)));
 
 	//z=0
 	//u.x * perpend.x + u.y * perpend.y = 0
@@ -107,48 +132,35 @@ vec3 perpendVec(vec3 p, vec3 u) {
 //point from point p with velocity v for time t
 vec3 pointFromPwithVforT(vec3 p, vec3 v, float t) {
 	// szeretem a faszt
-	return p*coshf(t) + normalize(v)*sinhf(t);
+	vec3 newP = p*coshf(t) + normalizeH(v)*sinhf(t);
+	//printvector(newP);
+	return approPoint(newP);
 }
 
 //velocity from point p with velocity v for time t
 vec3 velocityFromPwithVforT(vec3 p, vec3 v, float t) {
-	return normalize(p * sinhf(t) + normalize(v) * coshf(t));
+	vec3 newV = p * sinhf(t) + normalizeH(v) * coshf(t);
+	vec3 newP = pointFromPwithVforT(p, v, t);
+
+	newV = approVec(newV, newP);
+
+	return normalizeH(newV);
 }
 
 //distance between p and q
 float dist(vec3 p, vec3 q) {
 	//q = p *coshf(t) + normalizeH(v) * sinhf(t);
-	return acoshf((dotH(-1 * q, p)));
+	return acoshf(-1*dotH( q, p));
 }
 
 //direction from p to q
 vec3 dirTo(vec3 p, vec3 q) {
-	return normalize((q - 1 * p * cosh(dist(p, q)) * 1 / sinhf(dist(q, p))));
+	return normalizeH((q - 1 * p * cosh(dist(p, q))) * 1 / sinhf(dist(q, p)));
 }
 
-vec3 rotBy(vec3 v, float phi) {
-	return normalize(v*cosf(phi) + perpendVec(vec3(0,0,1), v) * sinf(phi));
-}
-
-//approximate vector for vector v
-vec3 approVec(vec3 v) {
-	float lambda = dotH(v, vec3(0, 0, 1));
-	return normalize(v + lambda * vec3(0, 0, 1));
-}
-
-//approximate point for point p
-vec3 approPoint(vec3 p) {
-	if (dotH(p,p) < -1.0f) {
-		std::cout<<"point: x: "<<p.x<<", y: "<<p.y<<", z: "<<p.z<<std::endl;
-		vec3 appro = p * sqrtf(-1.0f / dotH(p, p));
-		std::cout << "appro: x: "<<appro.x << ", y: " << appro.y<<", z: "<<appro.z<<std::endl;
-		std::cout << "doth(appro, appro)= " << dotH(appro, appro)<<std::endl;
-		return p * sqrtf(-1.0f / dotH(p,p));
-	}
-	if (dotH(p, p) > -1.0f) {
-		std::cout << "Nagy a baj, Houston.";
-		}
-	return p;
+vec3 rotBy(vec3 p, vec3 v, float phi) {
+	v = normalizeH(v);
+	return normalizeH(v*cosf(phi) + perpendVec(p, v) * sinf(phi));
 }
 
 vec2 projectToPoincareDisk(vec3 v) {
@@ -157,20 +169,25 @@ vec2 projectToPoincareDisk(vec3 v) {
 
 
 class Circle {
+	
+
+
+public:
 	float radius;
 	vec3 center;
 	vec3 color;
 
-
-public:
-
-
 	void create(float radius, vec3 center, vec3 color) {
 		this->radius = radius;
-		this->center = vec3(0,0,1);
-		this->color = color;
 		this->center = approPoint(center);
+		this->color = color;
 
+	}
+
+	vec3 update(vec3 v, float t) {
+		vec3 oldCenter = center;
+		center = pointFromPwithVforT(center, v, t);
+		return velocityFromPwithVforT(oldCenter, v, t);
 	}
 
 	void draw() {
@@ -190,7 +207,7 @@ public:
 
 			
 
-			vec3 circlePoint = pointFromPwithVforT(center, rotBy(v,phi), radius);
+			vec3 circlePoint = pointFromPwithVforT(center, rotBy(center, v,phi), radius);
 			//std::cout<<"circlePoint: "<<circlePoint.x<<" "<<circlePoint.y<<" "<<circlePoint.z<<std::endl;
 
 			projectedPoints.push_back(projectToPoincareDisk(circlePoint));
@@ -226,7 +243,7 @@ public:
 			0, NULL);
 
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		glUniform3f(location, 0.0f, 0.0f, 1.0f); // 3 floats
+		glUniform3f(location, color.x,color.y, color.z); // 3 floats
 
 		float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
 								  0, 1, 0, 0,    // row-major!
@@ -240,7 +257,7 @@ public:
 	}
 
 };
-/*
+
 class Hami {
 	vec3 position;
 	vec3 direction;
@@ -249,22 +266,81 @@ class Hami {
 	Circle bEyes[2];
 	Circle mouth;
 public:
-	void create(vec2 pos, vec2 dir, vec3 color) {
-		position = vec3(pos.x, pos.y, 1.0);
-		direction = vec3(dir.x, dir.y, 1.0f);
-		body.create(hamiSize, vec2(position.x, position.y), color);
-		wEyes[0].create(hamiSize / 4, vec2(position.x + hamiSize, position.y + hamiSize / 2), vec3(1, 1, 1));
-		wEyes[1].create(hamiSize / 4, vec2(position.x - hamiSize / 2, position.y + hamiSize / 2), vec3(1, 1, 1));
-
-		//bEye.create(hamiSize / 8, vec2(position.x + hamiSize / 4, position.y + hamiSize / 4), vec3(0, 0, 0));
+	void set(vec3 pos, vec3 dir, vec3 color) {
+		position = pos;
+		direction = dir;
+		body.create(hamiSize, pos, color);
+		wEyes[0].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 30.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
+		wEyes[1].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, -30.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
+		mouth.create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 0.0f), hamiSize), vec3(0, 0, 0));
+		bEyes[0].create(wEyes[0].radius / 4.0f, pointFromPwithVforT(wEyes[0].center, rotBy(wEyes[0].center, dirTo(position, wEyes[0].center),-30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 0, 0));
+		bEyes[1].create(wEyes[1].radius / 4.0f, pointFromPwithVforT(wEyes[1].center, rotBy(wEyes[1].center, dirTo(position, wEyes[1].center), 30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 0, 0));
+		/*printvector(pointFromPwithVforT(position, rotBy(position, direction, 30.0f / 180.0f * M_PI), hamiSize));
+		printvector(pointFromPwithVforT(wEyes[0].center, rotBy(wEyes[0].center, dirTo(position, wEyes[0].center), 2.3f), hamiSize / 2.0f));
+		printvector(dirTo(position, wEyes[0].center));
+		printvector(position);
+		vec3 p = position;
+		vec3 q = wEyes[0].center;
+		printvector(wEyes[0].center);
+		printvector(normalizeH((q - 1 * p * cosh(dist(p, q)) * 1 / sinhf(dist(q, p)))));
+		printf("%lf", sinhf(dist(q, p)));*/
 	}
+	void drawHami() {
+		body.draw();
+		wEyes[0].draw();
+		wEyes[1].draw();
+		mouth.draw();
+		bEyes[0].draw();
+		bEyes[1].draw();
+	}
+
+	void goForT(float t) {
+		direction = body.update(direction, t);
+		set(body.center, direction, body.color);
+	}
+
+	void changeDir(float phi) {
+		direction = rotBy(position, direction, phi);
+		set(position, direction, body.color);
+	}
+
 };
-*/
+
 
 
 
 std::vector<vec2> PoinCirclePoints;
 Circle redCirc;
+Hami hami;
+
+void drawVector(vec3 p, vec3 v) {
+	std::vector<vec2> vectorPoints;
+	vec3 newP = pointFromPwithVforT(p, v, 0.5f);
+	vectorPoints.push_back(projectToPoincareDisk(p));
+	vectorPoints.push_back(projectToPoincareDisk(newP));
+	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
+		sizeof(vec2) * vectorPoints.size(),  // # bytes
+		&vectorPoints[0],	      	// address
+		GL_STATIC_DRAW);	// we do not change later
+
+	glEnableVertexAttribArray(0);  // AttribArray 0
+	glVertexAttribPointer(0,       // vbo -> AttribArray 0
+		2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
+		0, NULL);
+
+	int location = glGetUniformLocation(gpuProgram.getId(), "color");
+	glUniform3f(location, 0.0f, 1.0f, 0.0f); // 3 floats
+
+	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
+							  0, 1, 0, 0,    // row-major!
+							  0, 0, 1, 0,
+							  0, 0, 0, 1 };
+
+	location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
+	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);
+
+	glDrawArrays(GL_LINE_STRIP, 0 /*startIdx*/, 2 /*# Elements*/);
+}
 
 void drawPoinDisk() {
 	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
@@ -294,6 +370,7 @@ void drawPoinDisk() {
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
+	glLineWidth(1.5f);
 
 	glGenVertexArrays(1, &vao);	// get 1 vao id
 	glBindVertexArray(vao);		// make it active
@@ -321,6 +398,8 @@ void onInitialization() {
 	
 	
 	redCirc.create(0.9f, vec3(0,500,501), vec3(1,0,0));
+
+	hami.set(vec3(0,0, 1), vec3(1, 1,0), vec3(1, 0, 0));
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
@@ -349,19 +428,23 @@ void onDisplay() {
 	// 
 	drawPoinDisk();
 	redCirc.draw();
+	hami.drawHami();
+	//drawVector(vec3(0, 0, 1), vec3(1,1,0));
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
 
 
 
 
-
+bool pressed[256] = { false, };
 
 
 
 // Key of ASCII code pressed
 void onKeyboard(unsigned char key, int pX, int pY) {
-	if (key == 'd') glutPostRedisplay();         // if d, invalidate display, i.e. redraw
+	pressed[key] = true;
+
+	// if d, invalidate display, i.e. redraw
 }
 
 
@@ -372,6 +455,7 @@ void onKeyboard(unsigned char key, int pX, int pY) {
 
 // Key of ASCII code released
 void onKeyboardUp(unsigned char key, int pX, int pY) {
+	pressed[key] = false;
 }
 
 
@@ -422,5 +506,11 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
 	long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
+	float secTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
+	if (pressed['w'] && time % 100 > 50) hami.goForT(.100f);
+	if (pressed['a'] && time % 100 > 50) hami.changeDir(.15f);
+	if (pressed['d'] && time % 100 > 50) hami.changeDir(-.15f);
+	//if (pressed['h']) amplitude = 0.9f * sinf(3 * secTime);
+	glutPostRedisplay(); // redraw the scene
 }
 
