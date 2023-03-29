@@ -89,7 +89,7 @@ vec3 normalizeH(vec3 u) {
 vec3 approVec(vec3 v, vec3 p) {
 	float lambda = dotH(v, p);
 	return normalizeH(v + lambda * p);
-}
+}	
 
 //approximate point for point p
 vec3 approPoint(vec3 p) {
@@ -102,7 +102,7 @@ vec3 approPoint(vec3 p) {
 		return p * sqrtf(-1.0f / dotH(p, p));
 	}
 	if (dotH(p, p) > 0.0f) {
-		std::cout << "Nagy a baj, Houston.";
+		return p * sqrtf(1.0f / dotH(p, p));
 	}
 	return p;
 }
@@ -167,6 +167,30 @@ vec2 projectToPoincareDisk(vec3 v) {
 	return vec2(v.x / (v.z + 1), v.y / (v.z + 1));
 }
 
+void drawLineStrip(std::vector<vec2> points) {
+	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
+		sizeof(vec2) * points.size(),  // # bytes
+		&points[0],	      	// address
+		GL_STATIC_DRAW);	// we do not change later
+
+	glEnableVertexAttribArray(0);  // AttribArray 0
+	glVertexAttribPointer(0,       // vbo -> AttribArray 0
+		2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
+		0, NULL);
+
+	int location = glGetUniformLocation(gpuProgram.getId(), "color");
+	glUniform3f(location, 0.7f, 0.7f, 0.7f); // 3 floats
+
+	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
+							  0, 1, 0, 0,    // row-major!
+							  0, 0, 1, 0,
+							  0, 0, 0, 1 };
+
+	location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
+	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);
+
+	glDrawArrays(GL_LINE_STRIP, 0 /*startIdx*/, points.size() /*# Elements*/);
+}
 
 class Circle {
 	
@@ -208,39 +232,21 @@ public:
 			
 
 			vec3 circlePoint = pointFromPwithVforT(center, rotBy(center, v,phi), radius);
-			//std::cout<<"circlePoint: "<<circlePoint.x<<" "<<circlePoint.y<<" "<<circlePoint.z<<std::endl;
-
+			
 			projectedPoints.push_back(projectToPoincareDisk(circlePoint));
 			
-			//write out projected points
-			//std::cout << "projected: " << projected.x << " " << projected.y << std::endl;
-
+			
 		}
-		/*
+		
 		glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
-			sizeof(vec2) * projectedPoints.size(),  // # bytes
-			&projectedPoints[0],	      	// address
-			GL_DYNAMIC_DRAW);	// we do not change later
-
-		// Set color to its color
-		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		glUniform3f(location, color.x, color.y, color.z); // 3 floats
-		float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
-										  0, 1, 0, 0,    // row-major!
-										  0, 0, 1, 0,
-										  0, 0, 0, 1 };
-		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
-		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Send data to the GPU
-		glDrawArrays(GL_TRIANGLE_FAN, 0, projectedPoints.size());*/
-		glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
-			sizeof(vec2) * projectedPoints.size(),  // # bytes
-			&projectedPoints[0],	      	// address
-			GL_STATIC_DRAW);	// we do not change later
+					sizeof(vec2) * projectedPoints.size(),  // # bytes
+					&projectedPoints[0],	      	// address
+					GL_STATIC_DRAW);	// we do not change later
 
 		glEnableVertexAttribArray(0);  // AttribArray 0
-		glVertexAttribPointer(0,       // vbo -> AttribArray 0
-			2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
-			0, NULL);
+		glVertexAttribPointer(	0,       // vbo -> AttribArray 0
+								2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
+								0, NULL);
 
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
 		glUniform3f(location, color.x,color.y, color.z); // 3 floats
@@ -258,6 +264,10 @@ public:
 
 };
 
+
+
+
+
 class Hami {
 	vec3 position;
 	vec3 direction;
@@ -265,6 +275,7 @@ class Hami {
 	Circle wEyes[2];
 	Circle bEyes[2];
 	Circle mouth;
+	std::vector<vec2> hamiPoints;
 public:
 	void set(vec3 pos, vec3 dir, vec3 color) {
 		position = pos;
@@ -273,19 +284,12 @@ public:
 		wEyes[0].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 30.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
 		wEyes[1].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, -30.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
 		mouth.create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 0.0f), hamiSize), vec3(0, 0, 0));
-		bEyes[0].create(wEyes[0].radius / 4.0f, pointFromPwithVforT(wEyes[0].center, rotBy(wEyes[0].center, dirTo(position, wEyes[0].center),-30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 0, 0));
-		bEyes[1].create(wEyes[1].radius / 4.0f, pointFromPwithVforT(wEyes[1].center, rotBy(wEyes[1].center, dirTo(position, wEyes[1].center), 30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 0, 0));
-		/*printvector(pointFromPwithVforT(position, rotBy(position, direction, 30.0f / 180.0f * M_PI), hamiSize));
-		printvector(pointFromPwithVforT(wEyes[0].center, rotBy(wEyes[0].center, dirTo(position, wEyes[0].center), 2.3f), hamiSize / 2.0f));
-		printvector(dirTo(position, wEyes[0].center));
-		printvector(position);
-		vec3 p = position;
-		vec3 q = wEyes[0].center;
-		printvector(wEyes[0].center);
-		printvector(normalizeH((q - 1 * p * cosh(dist(p, q)) * 1 / sinhf(dist(q, p)))));
-		printf("%lf", sinhf(dist(q, p)));*/
+		bEyes[0].create(wEyes[0].radius / 4.0f, pointFromPwithVforT(wEyes[0].center, rotBy(wEyes[0].center, dirTo(position, wEyes[0].center),-30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 1, 0));
+		bEyes[1].create(wEyes[1].radius / 4.0f, pointFromPwithVforT(wEyes[1].center, rotBy(wEyes[1].center, dirTo(position, wEyes[1].center), 30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 1, 0));
+		
 	}
 	void drawHami() {
+		drawLineStrip(hamiPoints);
 		body.draw();
 		wEyes[0].draw();
 		wEyes[1].draw();
@@ -295,6 +299,7 @@ public:
 	}
 
 	void goForT(float t) {
+		hamiPoints.push_back(projectToPoincareDisk(body.center));
 		direction = body.update(direction, t);
 		set(body.center, direction, body.color);
 	}
@@ -305,7 +310,6 @@ public:
 	}
 
 };
-
 
 
 
