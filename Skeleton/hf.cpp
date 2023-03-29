@@ -32,6 +32,7 @@
 // negativ elojellel szamoljak el es ezzel parhuzamosan eljaras is indul velem szemben.
 //=============================================================================================
 #include "framework.h"
+#include <iostream>
 
 // vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
 const char * const vertexSource = R"(
@@ -68,12 +69,12 @@ const float hamiSize = 0.2f;
 
 //dot hyperbolic
 float dotH(vec3 u, vec3 v) {
-	return u.x * v.x, u.y * v.y, -1 * u.z * v.z;
+	return u.x * v.x + u.y * v.y + -1 * u.z * v.z;
 }
 
 //vector length
 float absH(vec3 u) {
-	return sqrt(dotH(u, u));
+	return sqrtf(dotH(u, u));
 }
 
 //normalize vector
@@ -82,28 +83,36 @@ vec3 normalizeH(vec3 u) {
 }
 
 //perpendicular vector to u
-vec3 perpendVec(vec3 u) {
+vec3 perpendVec(vec3 p, vec3 u) {
 	vec3 perpend;
-	vec3 p = vec3(0, 0, 1);
+	//vec3 p = vec3(0, 0, 1);
+
+
+	return cross(vec3(u.x, u.y, -u.z), vec3(p.x, p.y, -p.z));
 
 	//z=0
 	//u.x * perpend.x + u.y * perpend.y = 0
 	//u.x * perpend.x = -u.y * perpend.y
 	//perpend.x = 1
 	//perpend.y = -u.x / u.y
-	
-	return normalizeH(vec3(1, -u.x / u.y, 0));
+	/*if (u.y == 0) {
+		return normalize(vec3(0, 1, 0));
+	}
+	else if (u.x == 1) {
+		return normalize(vec3(1, 0, 0));
+	}
+	return normalize(vec3(1, -u.x / u.y, 0));*/
 }
 
 //point from point p with velocity v for time t
 vec3 pointFromPwithVforT(vec3 p, vec3 v, float t) {
 	// szeretem a faszt
-	return p*coshf(t) + normalizeH(v)*sinhf(t);
+	return p*coshf(t) + normalize(v)*sinhf(t);
 }
 
 //velocity from point p with velocity v for time t
 vec3 velocityFromPwithVforT(vec3 p, vec3 v, float t) {
-	return normalizeH(p * sinhf(t) + normalizeH(v) * coshf(t));
+	return normalize(p * sinhf(t) + normalize(v) * coshf(t));
 }
 
 //distance between p and q
@@ -114,23 +123,32 @@ float dist(vec3 p, vec3 q) {
 
 //direction from p to q
 vec3 dirTo(vec3 p, vec3 q) {
-	return normalizeH((q - 1 * p * cosh(dist(p, q)) * 1 / sinhf(dist(q, p))));
+	return normalize((q - 1 * p * cosh(dist(p, q)) * 1 / sinhf(dist(q, p))));
 }
 
 vec3 rotBy(vec3 v, float phi) {
-	return normalizeH(v*coshf(phi) + perpendVec(v)*sinhf(phi));
+	return normalize(v*cosf(phi) + perpendVec(vec3(0,0,1), v) * sinf(phi));
 }
 
 //approximate vector for vector v
 vec3 approVec(vec3 v) {
 	float lambda = dotH(v, vec3(0, 0, 1));
-	return normalizeH(v + lambda * vec3(0, 0, 1));
+	return normalize(v + lambda * vec3(0, 0, 1));
 }
 
 //approximate point for point p
 vec3 approPoint(vec3 p) {
-	float lambda = sqrtf(	-1*1/dotH(p,p));
-	return lambda * p;
+	if (dotH(p,p) < -1.0f) {
+		std::cout<<"point: x: "<<p.x<<", y: "<<p.y<<", z: "<<p.z<<std::endl;
+		vec3 appro = p * sqrtf(-1.0f / dotH(p, p));
+		std::cout << "appro: x: "<<appro.x << ", y: " << appro.y<<", z: "<<appro.z<<std::endl;
+		std::cout << "doth(appro, appro)= " << dotH(appro, appro)<<std::endl;
+		return p * sqrtf(-1.0f / dotH(p,p));
+	}
+	if (dotH(p, p) > -1.0f) {
+		std::cout << "Nagy a baj, Houston.";
+		}
+	return p;
 }
 
 vec2 projectToPoincareDisk(vec3 v) {
@@ -147,10 +165,12 @@ class Circle {
 public:
 
 
-	void create(float radius, vec2 center, vec3 color) {
+	void create(float radius, vec3 center, vec3 color) {
 		this->radius = radius;
-		this->center = center;
+		this->center = vec3(0,0,1);
 		this->color = color;
+		this->center = approPoint(center);
+
 	}
 
 	void draw() {
@@ -161,20 +181,25 @@ public:
 		vec2 projected = projectToPoincareDisk(center);
 
 		//v perpendicular for p
-		vec3 v = perpendVec(center);
+		vec3 v = perpendVec(center, vec3(0,1,0));
+		
 		for (int i = 0; i < nTesselatedVertices; i++) {
 
 
 			float phi = i * 2.0f * M_PI / nTesselatedVertices;
 
-			vec3 circlePoint = pointFromPwithVforT(center, rotBy(v,phi), radius);
+			
 
+			vec3 circlePoint = pointFromPwithVforT(center, rotBy(v,phi), radius);
+			//std::cout<<"circlePoint: "<<circlePoint.x<<" "<<circlePoint.y<<" "<<circlePoint.z<<std::endl;
 
 			projectedPoints.push_back(projectToPoincareDisk(circlePoint));
-
+			
+			//write out projected points
+			//std::cout << "projected: " << projected.x << " " << projected.y << std::endl;
 
 		}
-
+		/*
 		glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
 			sizeof(vec2) * projectedPoints.size(),  // # bytes
 			&projectedPoints[0],	      	// address
@@ -189,7 +214,29 @@ public:
 										  0, 0, 0, 1 };
 		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
 		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Send data to the GPU
-		glDrawArrays(GL_TRIANGLE_FAN, 0, projectedPoints.size());
+		glDrawArrays(GL_TRIANGLE_FAN, 0, projectedPoints.size());*/
+		glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
+			sizeof(vec2) * projectedPoints.size(),  // # bytes
+			&projectedPoints[0],	      	// address
+			GL_STATIC_DRAW);	// we do not change later
+
+		glEnableVertexAttribArray(0);  // AttribArray 0
+		glVertexAttribPointer(0,       // vbo -> AttribArray 0
+			2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
+			0, NULL);
+
+		int location = glGetUniformLocation(gpuProgram.getId(), "color");
+		glUniform3f(location, 0.0f, 0.0f, 1.0f); // 3 floats
+
+		float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
+								  0, 1, 0, 0,    // row-major!
+								  0, 0, 1, 0,
+								  0, 0, 0, 1 };
+
+		location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
+		glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);
+
+		glDrawArrays(GL_TRIANGLE_FAN, 0 /*startIdx*/, nTesselatedVertices /*# Elements*/);
 	}
 
 };
@@ -214,8 +261,35 @@ public:
 };
 */
 
-std::vector<vec2> PoinCirclePoints;
 
+
+std::vector<vec2> PoinCirclePoints;
+Circle redCirc;
+
+void drawPoinDisk() {
+	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
+		sizeof(vec2) * PoinCirclePoints.size(),  // # bytes
+		&PoinCirclePoints[0],	      	// address
+		GL_STATIC_DRAW);	// we do not change later
+
+	glEnableVertexAttribArray(0);  // AttribArray 0
+	glVertexAttribPointer(0,       // vbo -> AttribArray 0
+		2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
+		0, NULL);
+
+	int location = glGetUniformLocation(gpuProgram.getId(), "color");
+	glUniform3f(location, 0.0f, 0.0f, 0.0f); // 3 floats
+
+	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
+							  0, 1, 0, 0,    // row-major!
+							  0, 0, 1, 0,
+							  0, 0, 0, 1 };
+
+	location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
+	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);
+
+	glDrawArrays(GL_TRIANGLE_FAN, 0 /*startIdx*/, nTesselatedVertices /*# Elements*/);
+}
 
 // Initialization, create an OpenGL context
 void onInitialization() {
@@ -227,28 +301,26 @@ void onInitialization() {
 	
 	glGenBuffers(1, &vbo);	// Generate 1 buffer
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	// Geometry with 24 bytes (6 floats or 3 x 2 coordinates)
-	//float vertices[] = { -0.8f, -0.8f, -0.6f, 1.0f, 0.8f, -0.2f };
-	/*
-	std::vector<vec2> PoinCirclePoints;
+	
 	for (int i = 0; i < nTesselatedVertices; i++) {
 		float phi = i * 2.0f * M_PI / nTesselatedVertices;
 		PoinCirclePoints.push_back(vec2(cosf(phi), sinf(phi)));
 	}
-
+	/*
 	// Copy to GPU and draw
 	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
 				sizeof(vec2) * PoinCirclePoints.size(),  // # bytes
 				&PoinCirclePoints[0],	      	// address
 				GL_STATIC_DRAW);	// we do not change later
-	*/
+	
 	glEnableVertexAttribArray(0);  // AttribArray 0
 	glVertexAttribPointer(0,       // vbo -> AttribArray 0
 				2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
 				0, NULL); 		     // stride, offset: tightly packed
-	//glDrawArrays(GL_TRIANGLE_FAN, 0, PoinCirclePoints.size());
+	//glDrawArrays(GL_TRIANGLE_FAN, 0, PoinCirclePoints.size());*/
 	
 	
+	redCirc.create(0.9f, vec3(0,500,501), vec3(1,0,0));
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
@@ -258,10 +330,10 @@ void onInitialization() {
 
 // Window has become invalid: Redraw
 void onDisplay() {
-	glClearColor(0, 0, 0, 0);     // background color
+	glClearColor(0.5f, 0.5f, 0.5, 1);     // background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
 	// Set color to (0, 1, 0) = green
-	int location = glGetUniformLocation(gpuProgram.getId(), "color");
+	/*int location = glGetUniformLocation(gpuProgram.getId(), "color");
 	glUniform3f(location, 0.0f, 1.0f, 0.0f); // 3 floats
 
 	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
@@ -270,11 +342,13 @@ void onDisplay() {
 							  0, 0, 0, 1 };
 
 	location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
-	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
+	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);*/	// Load a 4x4 row-major float matrix to the specified location
 
-	glBindVertexArray(vao);  // Draw call
-	glDrawArrays(GL_TRIANGLE_FAN, 0 /*startIdx*/, nTesselatedVertices /*# Elements*/);
-	
+	//glBindVertexArray(vao);  // Draw call
+	//glDrawArrays(GL_TRIANGLE_FAN, 0 /*startIdx*/, nTesselatedVertices /*# Elements*/);
+	// 
+	drawPoinDisk();
+	redCirc.draw();
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
 
