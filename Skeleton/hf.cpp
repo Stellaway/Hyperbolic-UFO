@@ -85,13 +85,8 @@ vec3 normalizeH(vec3 u) {
 	return u * (1 / absH(u));
 }
 
-	
-
 //approximate point for point p
 vec3 approPoint(vec3 p) {
-	if (dotH(p, p) == -1.0f) {
-		return p;
-	}
 	if (dotH(p, p) < 0.0f) {
 		vec3 appro = p * sqrtf(-1.0f / dotH(p, p));
 
@@ -201,6 +196,7 @@ class Circle {
 
 
 public:
+	float initialRadius;
 	float radius;
 	vec3 center;
 	vec3 color;
@@ -209,6 +205,7 @@ public:
 		this->radius = radius;
 		this->center = approPoint(center);
 		this->color = color;
+		this->initialRadius = radius;
 
 	}
 
@@ -217,6 +214,11 @@ public:
 		center = pointFromPwithVforT(center, v, t);
 		return velocityFromPwithVforT(oldCenter, v, t);
 	}
+
+	void setRadius(float rad) {
+		radius = rad;
+	}
+	
 
 	void draw() {
 		
@@ -273,6 +275,7 @@ public:
 
 
 class Hami {
+public:
 	vec3 position;
 	vec3 direction;
 	Circle body;
@@ -280,25 +283,30 @@ class Hami {
 	Circle bEyes[2];
 	Circle mouth;
 	std::vector<vec2> hamiPoints;
-public:
 	void set(vec3 pos, vec3 dir, vec3 color) {
 		position = approPoint(pos);//pointFromPwithVforT(pos, dir, 0);
 		direction = approVec(dir, position);//approPoint(pos));
 		body.create(hamiSize, pos, color);
-		wEyes[0].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 30.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
-		wEyes[1].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, -30.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
-		mouth.create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 0.0f), hamiSize), vec3(0, 0, 0));
-		bEyes[0].create(wEyes[0].radius / 4.0f, pointFromPwithVforT(wEyes[0].center, rotBy(wEyes[0].center, dirTo(position, wEyes[0].center),-30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 0.7f, 1));
-		bEyes[1].create(wEyes[1].radius / 4.0f, pointFromPwithVforT(wEyes[1].center, rotBy(wEyes[1].center, dirTo(position, wEyes[1].center), 30.0f/180.0f*M_PI), hamiSize / 5.0f), vec3(0, 0.7f, 1));
-		
+
+		//vec3 eye0Dir = dirTo(wEyes[0].center, bEyes[0].center);
+		//vec3 eye1Dir = dirTo(wEyes[1].center, bEyes[1].center);
+
+		wEyes[0].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 35.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
+		wEyes[1].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, -35.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
+		mouth.create(hamiSize / 3.0f, pointFromPwithVforT(position, rotBy(position, direction, 0.0f), hamiSize), vec3(0, 0, 0));
+		//if (GLUT_ELAPSED_TIME>100) setEyeTo(eye0Dir, eye1Dir);
 	}
 	void drawHami() {
 		body.draw();
+		mouth.draw();
 		wEyes[0].draw();
 		wEyes[1].draw();
-		mouth.draw();
 		bEyes[0].draw();
 		bEyes[1].draw();
+	}
+
+	void setMouth(float lambda) {
+		mouth.setRadius(mouth.initialRadius * lambda);
 	}
 
 	void drawHamiPoints() {
@@ -306,7 +314,11 @@ public:
 		drawLineStrip(hamiPoints);
 	}
 
-	//void setEyeOn(vec3)
+	void alertHamiEye(vec3 p){
+		bEyes[0].create(wEyes[0].radius / 4.0f, pointFromPwithVforT(wEyes[0].center, dirTo(wEyes[0].center, p), hamiSize / 5.2f), vec3(0, 0.7f, 1));
+		bEyes[1].create(wEyes[1].radius / 4.0f, pointFromPwithVforT(wEyes[1].center, dirTo(wEyes[1].center, p), hamiSize / 5.2f), vec3(0, 0.7f, 1));
+
+	}
 
 	void goForT(float t) {
 		hamiPoints.push_back(projectToPoincareDisk(body.center));
@@ -321,7 +333,9 @@ public:
 
 };
 
+void matchEyes(Hami h1, Hami h2) {
 
+}
 
 std::vector<vec2> PoinCirclePoints;
 Circle redCirc;
@@ -416,6 +430,9 @@ void onInitialization() {
 
 	redHami.set(vec3(0,0, 1), vec3(0, 1,0), vec3(1, 0, 0));
 	greenHami.set(vec3(3, 0, 3.16f), vec3(-1, 1, 0), vec3(0, 1, 0));
+	redHami.alertHamiEye(greenHami.position);
+	greenHami.alertHamiEye(redHami.position);
+
 	gpuProgram.create(vertexSource, fragmentSource, "outColor");
 }
 
@@ -526,14 +543,23 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 void onIdle() {
 	long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
 	//float secTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	if (pressed['w'] && time % 100 > 50) redHami.goForT(.100f);
-	if (pressed['a'] && time % 100 > 50) redHami.changeDir(.15f);
-	if (pressed['d'] && time % 100 > 50) redHami.changeDir(-.15f);
-	if (time % 100 > 50) {
+	int percent = 25;
+
+	if (pressed['w'] && time % 100 > percent) { redHami.goForT(.100f);		redHami.alertHamiEye(greenHami.position); }
+	if (pressed['a'] && time % 100 > percent) { redHami.changeDir(.15f);	redHami.alertHamiEye(greenHami.position); }
+	if (pressed['d'] && time % 100 > percent) { redHami.changeDir(-.15f);	redHami.alertHamiEye(greenHami.position); }
+	if (time % 100 > percent) {
+
 		greenHami.goForT(.100f);
 		greenHami.changeDir(.15f);
+		redHami.alertHamiEye(greenHami.position);
+		greenHami.alertHamiEye(redHami.position);
+	}
+	if (time % 100 > percent*1.5f) {
+		redHami.setMouth(abs(sinf(.5f * time/100.0f)));
 	}
 	//if (pressed['h']) amplitude = 0.9f * sinf(3 * secTime);
 	glutPostRedisplay(); // redraw the scene
+	
 }
 
