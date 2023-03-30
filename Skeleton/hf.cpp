@@ -35,7 +35,7 @@
 #include <iostream>
 
 // vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
-const char* const vertexSource = R"(
+const char * const vertexSource = R"(
 	#version 330				// Shader 3.3
 	precision highp float;		// normal floats, makes no difference on desktop computers
 
@@ -48,7 +48,7 @@ const char* const vertexSource = R"(
 )";
 
 // fragment shader in GLSL
-const char* const fragmentSource = R"(
+const char * const fragmentSource = R"(
 	#version 330			// Shader 3.3
 	precision highp float;	// normal floats, makes no difference on desktop computers
 	
@@ -67,6 +67,9 @@ const int nTesselatedVertices = 80;
 
 const float hamiSize = 0.5f;
 
+void printvector(vec3 p) {
+	printf("\nx: %lf, y: %lf, w: %lf\n", p.x, p.y, p.z);
+}
 //dot hyperbolic
 float dotH(vec3 u, vec3 v) {
 	return u.x * v.x + u.y * v.y + -1 * u.z * v.z;
@@ -110,7 +113,7 @@ vec3 perpendVec(vec3 p, vec3 u) {
 
 //point from point p with velocity v for time t
 vec3 pointFromPwithVforT(vec3 p, vec3 v, float t) {
-	vec3 newP = p * coshf(t) + normalizeH(v) * sinhf(t);
+	vec3 newP = p*coshf(t) + normalizeH(v)*sinhf(t);
 	return approPoint(newP);
 }
 
@@ -126,7 +129,7 @@ vec3 velocityFromPwithVforT(vec3 p, vec3 v, float t) {
 
 //distance between p and q
 float dist(vec3 p, vec3 q) {
-	return acoshf(-1 * dotH(q, p));
+	return acoshf(-1*dotH( q, p));
 }
 
 //direction from p to q
@@ -136,7 +139,7 @@ vec3 dirTo(vec3 p, vec3 q) {
 
 vec3 rotBy(vec3 p, vec3 v, float phi) {
 	v = normalizeH(v);
-	return normalizeH(v * cosf(phi) + perpendVec(p, v) * sinf(phi));
+	return normalizeH(v*cosf(phi) + perpendVec(p, v) * sinf(phi));
 }
 
 vec2 projectToPoincareDisk(vec3 v) {
@@ -194,37 +197,37 @@ public:
 	}
 
 	void draw() {
-
+		
 		std::vector<vec2> projectedPoints;
-
-
+		
+		
 		vec2 projected = projectToPoincareDisk(center);
 
 		//v perpendicular for p
-		vec3 v = perpendVec(center, vec3(0, 1, 0));
-
+		vec3 v = perpendVec(center, vec3(0,1,0));
+		
 		for (int i = 0; i < nTesselatedVertices; i++) {
 
 			float phi = i * 2.0f * M_PI / nTesselatedVertices;
 
-			vec3 circlePoint = pointFromPwithVforT(center, rotBy(center, v, phi), radius);
-
+			vec3 circlePoint = pointFromPwithVforT(center, rotBy(center, v,phi), radius);
+			
 			projectedPoints.push_back(projectToPoincareDisk(circlePoint));
-
+			
 		}
-
+		
 		glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
-			sizeof(vec2) * projectedPoints.size(),  // # bytes
-			&projectedPoints[0],	      	// address
-			GL_STATIC_DRAW);	// we do not change later
+					sizeof(vec2) * projectedPoints.size(),  // # bytes
+					&projectedPoints[0],	      	// address
+					GL_STATIC_DRAW);	// we do not change later
 
 		glEnableVertexAttribArray(0);  // AttribArray 0
-		glVertexAttribPointer(0,       // vbo -> AttribArray 0
-			2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
-			0, NULL);
+		glVertexAttribPointer(	0,       // vbo -> AttribArray 0
+								2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
+								0, NULL);
 
 		int location = glGetUniformLocation(gpuProgram.getId(), "color");
-		glUniform3f(location, color.x, color.y, color.z); // 3 floats
+		glUniform3f(location, color.x,color.y, color.z); // 3 floats
 
 		float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
 								  0, 1, 0, 0,    // row-major!
@@ -251,7 +254,7 @@ public:
 	void set(vec3 pos, vec3 dir, vec3 color) {
 		position = approPoint(pos);
 		direction = approVec(dir, position);
-		body.create(hamiSize, pos, color); wEyes[0].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 35.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
+		body.create(hamiSize, pos, color);wEyes[0].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, 35.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
 		wEyes[1].create(hamiSize / 4.0f, pointFromPwithVforT(position, rotBy(position, direction, -35.0f / 180.0f * M_PI), hamiSize), vec3(1, 1, 1));
 		mouth.create(hamiSize / 3.0f, pointFromPwithVforT(position, rotBy(position, direction, 0.0f), hamiSize), vec3(0, 0, 0));
 	}
@@ -269,11 +272,11 @@ public:
 	}
 
 	void drawHamiPoints() {
-
+		
 		drawLineStrip(hamiPoints);
 	}
 
-	void alertHamiEye(vec3 p) {
+	void alertHamiEye(vec3 p){
 		bEyes[0].create(wEyes[0].radius / 4.0f, pointFromPwithVforT(wEyes[0].center, dirTo(wEyes[0].center, p), hamiSize / 5.2f), vec3(0, 0.7f, 1));
 		bEyes[1].create(wEyes[1].radius / 4.0f, pointFromPwithVforT(wEyes[1].center, dirTo(wEyes[1].center, p), hamiSize / 5.2f), vec3(0, 0.7f, 1));
 
@@ -362,16 +365,16 @@ void onInitialization() {
 	glGenVertexArrays(1, &vao);	// get 1 vao id
 	glBindVertexArray(vao);		// make it active
 
-
+	
 	glGenBuffers(1, &vbo);	// Generate 1 buffer
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
+	
 	for (int i = 0; i < nTesselatedVertices; i++) {
 		float phi = i * 2.0f * M_PI / nTesselatedVertices;
 		PoinCirclePoints.push_back(vec2(cosf(phi), sinf(phi)));
 	}
-
-	redHami.set(vec3(0, 0, 1), vec3(0, 1, 0), vec3(1, 0, 0));
+	
+	redHami.set(vec3(0,0, 1), vec3(0, 1,0), vec3(1, 0, 0));
 	greenHami.set(vec3(3, 0, 3.16f), vec3(-1, 1, 0), vec3(0, 1, 0));
 	redHami.alertHamiEye(greenHami.position);
 	greenHami.alertHamiEye(redHami.position);
@@ -383,13 +386,13 @@ void onInitialization() {
 void onDisplay() {
 	glClearColor(0.5f, 0.5f, 0.5, 1);     // background color
 	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
-
+	
 	drawPoinDisk();
 	greenHami.drawHamiPoints();
 	redHami.drawHamiPoints();
 	greenHami.drawHami();
 	redHami.drawHami();
-
+	
 	glutSwapBuffers(); // exchange buffers for double buffering
 }
 
@@ -421,7 +424,7 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 
-	char* buttonStat;
+	char * buttonStat;
 	switch (state) {
 	case GLUT_DOWN: buttonStat = "pressed"; break;
 	case GLUT_UP:   buttonStat = "released"; break;
@@ -447,16 +450,16 @@ void onIdle() {
 		redHami.setMouth(abs(sinf(.5f * time / 100.0f)));
 		greenHami.setMouth(abs(sinf(.5f * time / 100.0f)));
 
-		greenHami.goForT(.100f * speed);
-		greenHami.changeDir(.15f * speed);
+		greenHami.goForT(.100f*speed);
+		greenHami.changeDir(.15f*speed);
 
 		redHami.alertHamiEye(greenHami.position);
 		greenHami.alertHamiEye(redHami.position);
-
+		
 		greenHami.setMouth(abs(sinf(.5f * time / 100.0f)));
 	}
-
+	
 	glutPostRedisplay(); // redraw the scene
-
+	
 }
 
