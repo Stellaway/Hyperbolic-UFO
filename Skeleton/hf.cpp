@@ -437,28 +437,35 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	}
 }
 
+long lastTime = 0;
+long deltaT = 0;
+
 // Idle event indicating that some time elapsed: do animation here
 void onIdle() {
 	long time = glutGet(GLUT_ELAPSED_TIME); // elapsed time since the start of the program
-	//float secTime = glutGet(GLUT_ELAPSED_TIME) / 1000.0f;
-	int percent = 25;
-	float speed = 1.0f;
-	if (pressed['e'] && time % 100 > percent) { redHami.goForT(.100f);		redHami.alertHamiEye(greenHami.position); }
-	if (pressed['s'] && time % 100 > percent) { redHami.changeDir(.15f);	redHami.alertHamiEye(greenHami.position); }
-	if (pressed['f'] && time % 100 > percent) { redHami.changeDir(-.15f);	redHami.alertHamiEye(greenHami.position); }
-	if (time % 100 > percent) {
-		redHami.setMouth(abs(sinf(.5f * time / 100.0f)));
-		greenHami.setMouth(abs(sinf(.5f * time / 100.0f)));
+	int defDelta = 30; // hány miliszekundumonként legyen képfrissítés (30 = 33.3 fps, 17 = 60 fps)
 
-		greenHami.goForT(.100f*speed);
-		greenHami.changeDir(.15f*speed);
+	deltaT += time - lastTime;
+	for (deltaT; deltaT >= defDelta; deltaT-=defDelta) {
+		if (pressed['e']) { redHami.goForT(.100f);		redHami.alertHamiEye(greenHami.position); }
+		if (pressed['s']) { redHami.changeDir(.15f);	redHami.alertHamiEye(greenHami.position); }
+		if (pressed['f']) { redHami.changeDir(-.15f);	redHami.alertHamiEye(greenHami.position); }
+		if (true) {
+			redHami.setMouth(abs(sinf(.5f * time / 100.0f)));
+			greenHami.setMouth(abs(sinf(.5f * time / 100.0f)));
 
-		redHami.alertHamiEye(greenHami.position);
-		greenHami.alertHamiEye(redHami.position);
+			greenHami.goForT(.100f);
+			greenHami.changeDir(.15f);
+
+			redHami.alertHamiEye(greenHami.position);
+			greenHami.alertHamiEye(redHami.position);
+
+			greenHami.setMouth(abs(sinf(.5f * time / 100.0f)));
+		}
 		
-		greenHami.setMouth(abs(sinf(.5f * time / 100.0f)));
 	}
-	
+
+	lastTime = time;
 	glutPostRedisplay(); // redraw the scene
 	
 }
