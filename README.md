@@ -1,6 +1,6 @@
 # Hyperbolic UFO
 
-This minigame uses the hyperbolic space to present two UFOs. The image is viewed with the Poincaré disk model. Green UFO is circling on its own while the red is controlled by the user.
+This minigame uses the hyperbolic space to present two UFOs. The image is viewed through the Poincaré disk model. Green UFO is circling on its own while the red one is controlled by the user.
 
 # Gallery
 
